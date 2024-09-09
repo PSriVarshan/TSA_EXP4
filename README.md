@@ -31,172 +31,165 @@
 
 ### PROGRAM:
 
-#### Importing necessary libraries and loading and displaying the dataset:
+#### Importing Necessary Libraries and Loading the Dataset
 
 ```py
-
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.stattools import adfuller
-from statsmodels.graphics.tsaplots import plot_pacf, plot_acf
-import sklearn.metrics
 from statsmodels.tsa.arima_process import ArmaProcess
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from sklearn.metrics import mean_squared_error
 
 # Load the dataset
 df = pd.read_csv('russia_losses_equipment.csv')
 
 ```
-#### Extracting and Plotting the data the temperature data:
+
+####  Extracting and Plotting the 'Tank' Data
 
 ```py
 # Extracting and cleaning the 'tank' data
 X = df['tank'].replace([np.inf, -np.inf], np.nan).dropna()
 
-# Plot the tank data
-plt.figure(figsize=(10, 6))
-plt.plot(X, label='Tank Data')
-plt.title('Tank Data Plot')
-plt.xlabel('Index')
-plt.ylabel('Number of Tanks')
-plt.legend()
-plt.show()
-```
-
-
-#### Augmented Dickey-Fuller Test
-
-```py
-# Augmented Dickey-Fuller Test
-dtest = adfuller(X, autolag='AIC')
-print("\nAugmented Dickey-Fuller Test:")
-print(f"ADF Statistic: {dtest[0]}")
-print(f"p-value: {dtest[1]}")
-print(f"No. of Lags Used: {dtest[2]}")
-print(f"No. of Observations Used: {dtest[3]}")
-```
-
-#### Train-Test Split and Model Fitting:
-
-
-```py
-
-# Train-Test Split
-train_size = len(X) - 15
-X_train, X_test = X[:train_size], X[train_size:]
-
-```
-
-#### ARIMA Fitting
-
-```py
-# Fit ARIMA model
-p, d, q = 3, 0, 2
-arma_model = ARIMA(X_train, order=(p, d, q)).fit()
-
-# Model Summary
-print("\nARIMA Model Summary:")
-print(arma_model.summary())
-```
-```py
-# Fit ARMA(1,1) model to the 'tank' data to estimate parameters
-arma_model = ARIMA(X, order=(1, 0, 1)).fit()
-phi_estimated = arma_model.params['ar.L1']
-theta_estimated = arma_model.params['ma.L1']
-
-# Print estimated parameters
-print(f"Estimated AR(1) coefficient (phi): {phi_estimated}")
-print(f"Estimated MA(1) coefficient (theta): {theta_estimated}")
-
-# Define the AR and MA parameters using the estimated values
-ar_params = np.array([1, -phi_estimated])  # Note: AR terms are negated
-ma_params = np.array([1, theta_estimated])
-
-# Create an ARMA process with the estimated parameters
-arma_process = ArmaProcess(ar_params, ma_params)
-
-# Simulate the ARMA(1,1) process
-n_samples = len(X)  # Number of samples similar to the original data length
-np.random.seed(42)  # For reproducibility
-simulated_data = arma_process.generate_sample(nsample=n_samples)
-
-# Plotting the simulated ARMA(1,1) process
-plt.figure(figsize=(10, 6))
-plt.plot(simulated_data, label='Simulated ARMA(1,1) Process')
-plt.title('Simulated ARMA(1,1) Process based on Tank Data')
-plt.xlabel('Time')
-plt.ylabel('Simulated Value')
-plt.legend()
-plt.show()
-```
-#### Autocorrelation and Partial Autocorrelation Plots and Making Predictions:
-
-```py
-# Plotting ACF and PACF
+# Plot ACF and PACF of the original data before any ARMA modeling
 plt.figure(figsize=(12, 6))
 plt.subplot(1, 2, 1)
 plot_acf(X, lags=25, ax=plt.gca())
-plt.title('Autocorrelation Plot')
+plt.title('Original Tank Data ACF')
 plt.subplot(1, 2, 2)
 plot_pacf(X, lags=25, ax=plt.gca())
-plt.title('Partial Autocorrelation Plot')
+plt.title('Original Tank Data PACF')
+plt.tight_layout()
+plt.show()
+
+```
+#### Train-Test Split and ARMA Model Fitting
+
+```py
+# Train-Test Split
+train_size = int(len(X) * 0.8)
+X_train, X_test = X[:train_size], X[train_size:]
+
+# Fit ARMA(1,1) model to the 'tank' data to estimate parameters
+arma11_model = ARIMA(X_train, order=(1, 0, 1)).fit()
+phi1_arma11 = arma11_model.params['ar.L1']
+theta1_arma11 = arma11_model.params['ma.L1']
+
+# Simulate ARMA(1,1) process
+ar_params_11 = np.array([1, -phi1_arma11])  # AR(1) parameter
+ma_params_11 = np.array([1, theta1_arma11])  # MA(1) parameter
+arma11_process = ArmaProcess(ar_params_11, ma_params_11)
+
+# Set random seed and simulate ARMA(1,1)
+np.random.seed(42)  # For reproducibility
+simulated_arma11 = arma11_process.generate_sample(nsample=len(X))
+
+```
+
+#### Plotting Simulated ARMA(1,1) Data
+
+```py
+# Plot ACF, PACF, and Simulated ARMA(1,1)
+plt.figure(figsize=(18, 6))
+
+# Simulated ARMA(1,1) ACF and PACF
+plt.subplot(1, 3, 1)
+plot_acf(simulated_arma11, lags=25, ax=plt.gca())
+plt.title('Simulated ARMA(1,1) ACF')
+plt.subplot(1, 3, 2)
+plot_pacf(simulated_arma11, lags=25, ax=plt.gca())
+plt.title('Simulated ARMA(1,1) PACF')
+
+# Simulated ARMA(1,1) plot
+plt.subplot(1, 3, 3)
+plt.plot(simulated_arma11, label='Simulated ARMA(1,1)', color='orange')
+plt.title('Simulated ARMA(1,1) Data')
+plt.xlabel('Time')
+plt.ylabel('Value')
+plt.legend()
+
+plt.tight_layout()
+plt.show()
+
+
+```
+
+#### ARMA(2,2) Model Fitting and Simulation
+
+```py
+
+# Fit ARMA(2,2) model to the 'tank' data to estimate parameters
+arma22_model = ARIMA(X_train, order=(2, 0, 2)).fit()
+phi1_arma22 = arma22_model.params['ar.L1']
+phi2_arma22 = arma22_model.params['ar.L2']
+theta1_arma22 = arma22_model.params['ma.L1']
+theta2_arma22 = arma22_model.params['ma.L2']
+
+# Simulate ARMA(2,2) process
+ar_params_22 = np.array([1, -phi1_arma22, -phi2_arma22])  # AR(2) parameters
+ma_params_22 = np.array([1, theta1_arma22, theta2_arma22])  # MA(2) parameters
+arma22_process = ArmaProcess(ar_params_22, ma_params_22)
+
+# Set random seed and simulate ARMA(2,2)
+np.random.seed(42)  # For reproducibility
+simulated_arma22 = arma22_process.generate_sample(nsample=len(X))
+
+
+```
+
+#### Plotting Simulated ARMA(2,2) Data
+
+```py
+# Plot ACF, PACF, and Simulated ARMA(2,2)
+plt.figure(figsize=(18, 6))
+
+# Simulated ARMA(2,2) ACF and PACF
+plt.subplot(1, 3, 1)
+plot_acf(simulated_arma22, lags=25, ax=plt.gca())
+plt.title('Simulated ARMA(2,2) ACF')
+plt.subplot(1, 3, 2)
+plot_pacf(simulated_arma22, lags=25, ax=plt.gca())
+plt.title('Simulated ARMA(2,2) PACF')
+
+# Simulated ARMA(2,2) plot
+plt.subplot(1, 3, 3)
+plt.plot(simulated_arma22, label='Simulated ARMA(2,2)', color='green')
+plt.title('Simulated ARMA(2,2) Data')
+plt.xlabel('Time')
+plt.ylabel('Value')
+plt.legend()
+
 plt.tight_layout()
 plt.show()
 
 ```
 
-#### Model Evaluation and Plotting Predictions:
-
-
-```py
-# Making Predictions
-pred = arma_model.predict(start=len(X_train), end=len(X_train) + len(X_test) - 1, dynamic=False)
-
-# Model Evaluation
-mse = sklearn.metrics.mean_squared_error(X_test, pred)
-rmse = np.sqrt(mse)
-print(f"\nRoot Mean Squared Error (RMSE): {rmse}")
-
-# Plotting Test Data vs Predictions
-plt.figure(figsize=(10, 6))
-plt.plot(X_test.index, X_test, label='Test Data')
-plt.plot(X_test.index, pred, label='Predictions')
-plt.title('Test Data vs Predictions')
-plt.xlabel('Index')
-plt.ylabel('Number of Tanks')
-plt.legend()
-plt.show()
-
-```
-
-
 
 ### OUTPUT:
 
-#### Time Series plot 
-
-![image](https://github.com/user-attachments/assets/4d74cee3-9a24-4863-a292-5638b97e8e8c)
-
-
-#### SIMULATED ARMA(1,1) PROCESS:
-
-![image](https://github.com/user-attachments/assets/6134a34e-1812-461d-b995-a6357922b25c)
-
-
 #### Autocorrelation and Partial Autocorrelation
 
-![image](https://github.com/user-attachments/assets/b6c9cd67-cbd8-4429-938a-7e0866fb647d)
+![image](https://github.com/user-attachments/assets/64bda9f9-446b-4512-8cc9-b4e166bf01bb)
 
 
 
-SIMULATED ARMA(2,2) PROCESS:
-
-Partial Autocorrelation
+#### SIMULATED ARMA(1,1) PROCESS: Autocorrelation and Partial Autocorrelation
 
 
+![image](https://github.com/user-attachments/assets/8752ceb6-e67d-4664-9eb4-e7f79cdbc232)
 
-Autocorrelation
 
-RESULT:
-Thus, a python program is created to fir ARMA Model successfully.
+
+
+SIMULATED ARMA(2,2) PROCESS: Autocorrelation and Partial Autocorrelation
+
+
+![image](https://github.com/user-attachments/assets/8384178a-6933-4560-88ab-0572f1cca42c)
+
+
+
+### RESULT:
+
+#### Thus, a python program is created to for ARMA Model successfully.
